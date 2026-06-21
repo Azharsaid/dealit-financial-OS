@@ -1,6 +1,6 @@
-/* Dealit Financial OS v2.8
+/* Dealit Financial OS v2.9
    Firebase Cloud + Accounting + Feasibility + Break-even + Loyalty Engine
-   Static GitHub Pages compatible. Login supports Enter key, Remember me, default first password, forced password change and Admin reset links.
+   Static GitHub Pages compatible. Stable first-login password change flow.
 */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-app.js";
@@ -158,6 +158,7 @@ let state = defaultState();
 let currentUser = null;
 let currentProfile = null;
 let currentRole = 'guest';
+let lastLoginPassword = '';
 let unsubscribeWorkspace = null;
 let saveTimer = null;
 let cloudDirty = false;
@@ -1021,7 +1022,7 @@ function exportPpt(){
   addSlide('Top sectors',sectorStats().slice(0,7).map(r=>`${r.sector}: GMV ${money(r.gmv)} | Profit ${money(r.profit)}`));
   addSlide('Store attraction',merchantAttractionRows().slice(0,7).map(r=>`${r.name}: Suggested ${pct(r.suggested)} | Final ${pct(r.score)} | Share ${pct(r.share)}`));
   addSlide('Point matrix summary',pointRedemptionMatrix().slice(0,7).map(r=>`${r.source}: issued ${money(r.issued)} | expected redeemed ${money(r.expectedRedeemed)} | row total ${pct(r.rowTotalPct)} | breakage ${money(r.breakage)}`));
-  pptx.writeFile({fileName:'dealit-financial-os-v2-8.pptx'});
+  pptx.writeFile({fileName:'dealit-financial-os-v2-9.pptx'});
 }
 
 
@@ -1051,48 +1052,47 @@ async function completeForcedPasswordChange(){
   const p1=document.getElementById('newPasswordInput')?.value || '';
   const p2=document.getElementById('confirmPasswordInput')?.value || '';
   const btn=document.getElementById('changePasswordBtn');
+  const note=document.getElementById('forcePasswordNote');
   if(p1.length < 6){ toast(state.lang==='ar'?'كلمة المرور يجب أن تكون 6 خانات على الأقل':'Password must be at least 6 characters'); return; }
   if(p1 !== p2){ toast(state.lang==='ar'?'كلمتا المرور غير متطابقتين':'Passwords do not match'); return; }
   if(p1 === DEFAULT_FIRST_LOGIN_PASSWORD){ toast(state.lang==='ar'?'اختار كلمة مرور مختلفة عن 123456':'Choose a password different from 123456'); return; }
+  if(!auth.currentUser){ toast(state.lang==='ar'?'الجلسة غير فعالة، سجّل الدخول مرة أخرى':'Session is not active. Log in again.'); return; }
   try{
-    if(btn){ btn.disabled=true; btn.textContent=state.lang==='ar'?'جاري التحديث...':'Updating...'; }
+    if(btn){ btn.disabled=true; btn.textContent=state.lang==='ar'?'جاري تحديث كلمة المرور...':'Updating password...'; }
+    if(note){ note.textContent=state.lang==='ar'?'جاري تحديث كلمة المرور داخل Firebase...':'Updating password in Firebase...'; }
 
-    // 1) Change the password in Firebase Authentication for the currently signed-in user.
+    // Critical step: change the password for the currently signed-in user.
+    // Do NOT wait on Firestore before letting the user enter the system.
     await updatePassword(auth.currentUser, p1);
 
-    // 2) Mark the forced-change flag as completed in the user's own Firestore profile.
-    // Firestore rules v2.8 allow the signed-in user to update only these password-status fields.
-    await setDoc(doc(db,'users',auth.currentUser.uid),{
-      email:emailKey(auth.currentUser.email),
-      mustChangePassword:false,
-      defaultPasswordActive:false,
-      passwordChangedAt:serverTimestamp()
-    },{merge:true});
-
-    // 3) Best effort only: keep the invitation row clean too. If rules/data block it, do not trap the user.
-    await setDoc(doc(db,'invitations',emailKey(auth.currentUser.email)),{
-      email:emailKey(auth.currentUser.email),
-      mustChangePassword:false,
-      defaultPasswordActive:false,
-      passwordChangedAt:serverTimestamp()
-    },{merge:true}).catch(err=>console.warn('Invitation password flag was not updated:', err.message));
-
-    await writeAudit('Forced password changed');
-    currentProfile={...(currentProfile||{}),mustChangePassword:false,defaultPasswordActive:false};
+    currentProfile={...(currentProfile||{}),mustChangePassword:false,defaultPasswordActive:false,passwordChangedAt:new Date().toISOString()};
+    lastLoginPassword=p1;
     closeForcePasswordModal();
     render();
-    toast(state.lang==='ar'?'تم تحديث كلمة المرور، يمكنك الآن استخدام النظام':'Password updated. You can now use the system.');
+    toast(state.lang==='ar'?'تم تحديث كلمة المرور ودخولك للنظام':'Password updated. You are in the system.');
+
+    // Background cleanup only. If Firestore rules are not updated yet, the app will not freeze.
+    const uid=auth.currentUser.uid;
+    const email=emailKey(auth.currentUser.email);
+    const cleanup={mustChangePassword:false,defaultPasswordActive:false,passwordChangedAt:serverTimestamp()};
+    Promise.allSettled([
+      setDoc(doc(db,'users',uid), cleanup, {merge:true}),
+      setDoc(doc(db,'invitations',email), cleanup, {merge:true}),
+      writeAudit('Forced password changed')
+    ]).then(results=>{
+      const rejected=results.filter(r=>r.status==='rejected');
+      if(rejected.length){ console.warn('Password flag cleanup did not fully complete:', rejected.map(r=>r.reason?.message||r.reason)); }
+    });
   }catch(e){
     console.error(e);
     if(e.code === 'auth/requires-recent-login'){
-      toast(state.lang==='ar'?'انتهت جلسة الأمان. سجّل الخروج وادخل مرة أخرى ثم غيّر كلمة المرور.':'Security session expired. Log in again, then change the password.');
-    }else if(String(e.message||'').toLowerCase().includes('permission')){
-      toast(state.lang==='ar'?'يجب تحديث Firestore Rules إلى نسخة v2.8 ثم إعادة المحاولة.':'Update Firestore Rules to v2.8, then try again.');
+      toast(state.lang==='ar'?'انتهت جلسة الأمان. اعمل Logout ثم ادخل بكلمة 123456 وحاول مباشرة.':'Security session expired. Log out, log in with 123456, and try immediately.');
     }else{
       toast(e.message || (state.lang==='ar'?'تعذر تحديث كلمة المرور':'Could not update password'));
     }
   }finally{
     if(btn){ btn.disabled=false; btn.textContent=state.lang==='ar'?'تحديث كلمة المرور':'Update password'; }
+    if(note){ note.textContent=state.lang==='ar'?'بعد التحديث ستدخل دائمًا بكلمة المرور الجديدة.':'After updating, you will use the new password for future logins.'; }
   }
 }
 function wire(){
@@ -1131,6 +1131,7 @@ async function login(signup=false){
   if(!email || !pass){ toast(t('signInError')); return; }
   try{
     await setPersistence(auth, remember ? browserLocalPersistence : browserSessionPersistence);
+    lastLoginPassword = pass;
     if(signup) await createUserWithEmailAndPassword(auth,email,pass);
     else await signInWithEmailAndPassword(auth,email,pass);
   }
@@ -1144,7 +1145,17 @@ onAuthStateChanged(auth, async user=>{
     if(!profile){ document.getElementById('authStatus').textContent=t('noAccess'); await signOut(auth); return; }
     currentProfile=profile;
     currentRole=profile.role||'partner'; authLayer.style.display='none'; appShell.hidden=false; await loadWorkspace(); await loadRemoteAudit(); render(); toast(t('loaded'));
-    if(profile.mustChangePassword || profile.defaultPasswordActive){ openForcePasswordModal(); }
+    const loggedWithDefaultPassword = lastLoginPassword === DEFAULT_FIRST_LOGIN_PASSWORD;
+    const needsForcedChange = (profile.mustChangePassword || profile.defaultPasswordActive) && loggedWithDefaultPassword;
+    if(needsForcedChange){
+      openForcePasswordModal();
+    }else if((profile.mustChangePassword || profile.defaultPasswordActive) && !loggedWithDefaultPassword){
+      // The user is already using a non-default password. Clear old flags in the background and do not block access.
+      currentProfile={...profile,mustChangePassword:false,defaultPasswordActive:false};
+      const cleanup={mustChangePassword:false,defaultPasswordActive:false,passwordChangedAt:serverTimestamp()};
+      setDoc(doc(db,'users',user.uid), cleanup, {merge:true}).catch(err=>console.warn('Could not clear password flag:', err.message));
+      setDoc(doc(db,'invitations',emailKey(user.email)), cleanup, {merge:true}).catch(()=>{});
+    }
   }catch(e){console.error(e); document.getElementById('authStatus').textContent=e.message; toast(e.message);}
 });
 

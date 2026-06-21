@@ -47,13 +47,10 @@ service cloud.firestore {
       return /databases/$(database)/documents/invitations/$(request.auth.token.email);
     }
 
-    // Allows a new user to finish the forced password-change popup without giving them
+    // Allows a user to finish the forced password-change popup without giving them
     // permission to change their role, email, or any financial data.
     function selfPasswordStatusUpdate(uid) {
       return isSelf(uid)
-        && resource.data.email == request.auth.token.email
-        && request.resource.data.email == resource.data.email
-        && request.resource.data.role == resource.data.role
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           "mustChangePassword",
           "defaultPasswordActive",
@@ -64,8 +61,6 @@ service cloud.firestore {
     function selfInvitationPasswordStatusUpdate(email) {
       return signedIn()
         && request.auth.token.email == email
-        && request.resource.data.email == resource.data.email
-        && request.resource.data.role == resource.data.role
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           "mustChangePassword",
           "defaultPasswordActive",
