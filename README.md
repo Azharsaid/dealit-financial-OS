@@ -1,5 +1,7 @@
-# Dealit Financial OS v2.9 — Stable Password Flow
+# Dealit Financial OS v3.0 — Mobile First
 
-Fixes the first-login password-change popup so the user enters the system immediately after Firebase Auth password update. Firestore flag cleanup runs in the background and will not freeze the popup.
+This version adds a mobile-first interface, executive cockpit, decision alerts, store health score, mobile point matrix editor, what-if simulator, and Founder/Investor view mode.
 
-Upload all files to GitHub Pages and publish the included `firestore.rules`.
+Upload all files to GitHub Pages. Keep `index.html` unchanged.
+
+Important: keep the Firestore Rules from this folder published in Firebase.

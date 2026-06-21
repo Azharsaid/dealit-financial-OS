@@ -1,6 +1,6 @@
-/* Dealit Financial OS v2.9
-   Firebase Cloud + Accounting + Feasibility + Break-even + Loyalty Engine
-   Static GitHub Pages compatible. Stable first-login password change flow.
+/* Dealit Financial OS v3.0
+   Mobile-first UX + Executive cockpit + Decision alerts + Store health + Mobile matrix + What-if simulator.
+   Firebase Cloud + Accounting + Feasibility + Break-even + Loyalty Engine.
 */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-app.js";
@@ -102,7 +102,7 @@ const DEFAULT_SECTORS = [
 function uid(prefix='id'){return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2,8)}`}
 function defaultState(){
   return {
-    version:2.4, lang:DEFAULT_LANG, currentPage:'dashboard', activeScenario:'acceptable', activeReportTab:'summary', lastUpdated:null, pointMatrixOverrides:{},
+    version:3.0, lang:DEFAULT_LANG, currentPage:'dashboard', activeScenario:'acceptable', activeReportTab:'summary', viewMode:'founder', lastUpdated:null, pointMatrixOverrides:{},
     settings:{currency:'JOD',fiscalStart:'Company registration date',periodMonths:12,forecastMonths:24,pointValue:1,pointExpiryMonths:24,paymentFeePct:2.5,paymentGatewayMonthlyFee:0,generalRedemptionCapPct:50,marketingReservePct:25,treatMarketingReserveAsExpense:true,deliveryInScope:false,deliveryProfit:false,vatAsSeparateLine:true,autoSave:true},
     sectors: JSON.parse(JSON.stringify(DEFAULT_SECTORS)),
     merchants:[
@@ -445,7 +445,7 @@ function normalizeMatrixOverrides(){
   });
 }
 function tableHtml(headers, rows, wide=true){
-  return `<div class="table-wrap ${wide?'wide':''}"><table><thead><tr>${headers.map(h=>`<th>${html(h)}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map(c=>`<td>${c??''}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+  return `<div class="table-wrap ${wide?'wide':''}"><table><thead><tr>${headers.map(h=>`<th>${html(h)}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map((c,i)=>`<td data-label="${html(headers[i]||'')}">${c??''}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
 }
 function reportKpiGrid(items){return `<div class="grid two">${items.map(x=>`<div class="insight-card"><strong>${html(x[0])}</strong><p>${x[1]}</p></div>`).join('')}</div>`}
 
@@ -539,17 +539,136 @@ async function loadRemoteAudit(){
   }catch(e){console.warn(e.message)}
 }
 
+function isInvestorMode(){ return state.viewMode === 'investor' || currentRole === 'investor'; }
+function visibleNavItems(){
+  const hiddenForInvestor = new Set(['admin','settings','accounting','items','subscriptions']);
+  return NAV.filter(([key])=>{
+    if(key==='admin' && !isAdmin()) return false;
+    if(isInvestorMode() && hiddenForInvestor.has(key)) return false;
+    return true;
+  });
+}
+function buildDecisionAlerts(c=calcScenario()){
+  const alerts=[];
+  const sc=scenario();
+  const paymentPct=n(sc.paymentFeePct||state.settings.paymentFeePct);
+  const dangerousCommission = c.weightedCommission < (c.weightedReward + paymentPct);
+  if(dangerousCommission) alerts.push({level:'bad',title:state.lang==='ar'?'عمولة غير آمنة':'Unsafe commission',body:state.lang==='ar'?'العمولة الموزونة لا تغطي النقاط ورسوم الدفع. ارفع العمولة أو خفّض Reward %.':'Weighted commission does not cover rewards and payment fees. Increase commission or reduce reward %.',action:state.lang==='ar'?'راجع القطاعات منخفضة العمولة':'Review low-commission sectors'});
+  if(c.netProfit < 0) alerts.push({level:'bad',title:state.lang==='ar'?'لسه تحت نقطة التعادل':'Below break-even',body:`${state.lang==='ar'?'الخسارة الشهرية الحالية':'Current monthly loss'} ${money(Math.abs(c.netProfit))}.`,action:state.lang==='ar'?'ارفع GMV أو قلل المصاريف الثابتة':'Increase GMV or reduce fixed costs'});
+  else alerts.push({level:'good',title:state.lang==='ar'?'النموذج مربح':'Profitable model',body:`${state.lang==='ar'?'الربح الشهري المتوقع':'Expected monthly profit'} ${money(c.netProfit)}.`,action:state.lang==='ar'?'حافظ على جودة الصفقات':'Protect deal quality'});
+  if(c.pointLiability > c.commissionRevenue * 0.65) alerts.push({level:'warn',title:state.lang==='ar'?'التزام النقاط مرتفع':'High point liability',body:state.lang==='ar'?'قيمة النقاط المتوقع صرفها كبيرة مقارنة بإيراد العمولة.':'Expected redeemed points are high compared with commission revenue.',action:state.lang==='ar'?'خفّض cap أو reward في المتاجر عالية المخاطر':'Reduce cap or reward in risky stores'});
+  const risky=merchantHealthRows().filter(r=>r.finalScore<45).slice(0,2);
+  risky.forEach(r=>alerts.push({level:'warn',title:state.lang==='ar'?'متجر يحتاج تفاوض':'Merchant needs renegotiation',body:`${html(r.name)}: ${r.recommendation}`,action:state.lang==='ar'?'ارفع العمولة أو الاشتراك':'Increase commission or subscription'}));
+  if(c.gmv < c.breakEvenGMV && Number.isFinite(c.breakEvenGMV)) alerts.push({level:'warn',title:state.lang==='ar'?'فجوة GMV':'GMV gap',body:`${state.lang==='ar'?'تحتاج تقريبًا':'Need about'} ${money(c.breakEvenGMV-c.gmv)} ${state.lang==='ar'?'GMV إضافي للوصول للتعادل':'more GMV to break even'}.`,action:state.lang==='ar'?'استهدف متاجر جذبها عالي':'Target high-attraction stores'});
+  return alerts.slice(0,6);
+}
+function merchantHealthRows(){
+  const beMap=new Map(merchantBreakEvenRows().map(r=>[r.id,r]));
+  const attractMap=new Map(merchantAttractionRows().map(r=>[r.id,r]));
+  return activeMerchants().map(m=>{
+    const be=beMap.get(m.id) || {};
+    const att=attractMap.get(m.id) || {};
+    const gmv=merchantGMV(m);
+    const commission=merchantCommission(m);
+    const points=(merchantBasePoints(m)+merchantCampaignPoints(m))*n(scenario().redemptionRate)/100;
+    const pointToCommission=commission>0?points/commission*100:999;
+    const attractionScore=n(att.score || merchantAttractionScore(m));
+    const profitabilityScore=clamp((n(be.cmr)*100 + 5) * 4, 0, 100);
+    const loyaltySafetyScore=clamp(100 - pointToCommission, 0, 100);
+    const breakEvenScore=Number.isFinite(be.gap) ? clamp(50 + (be.gap/Math.max(1,gmv))*70, 0, 100) : 0;
+    const riskScore=clamp(100 - ((pointToCommission>65?25:0) + (be.gap<0?30:0) + (n(m.commissionPct)<n(m.rewardPct)+n(scenario().paymentFeePct||state.settings.paymentFeePct)?25:0)), 0, 100);
+    const finalScore=clamp(attractionScore*.25 + profitabilityScore*.25 + loyaltySafetyScore*.18 + breakEvenScore*.20 + riskScore*.12, 0, 100);
+    let recommendation=state.lang==='ar'?'شريك ممتاز':'Excellent partner';
+    if(finalScore<45) recommendation=state.lang==='ar'?'خطر: ارفع العمولة/خفّض النقاط':'Risky: raise commission/reduce rewards';
+    else if(attractionScore>=70 && profitabilityScore<50) recommendation=state.lang==='ar'?'جذب عالي لكن ربحية ضعيفة':'High attraction but weak profit';
+    else if(loyaltySafetyScore<45) recommendation=state.lang==='ar'?'تكلفة ولاء مرتفعة':'High loyalty cost';
+    else if(breakEvenScore<50) recommendation=state.lang==='ar'?'يحتاج حجم طلبات أعلى':'Needs higher order volume';
+    return {id:m.id,name:m.name,sector:m.sector,gmv,attractionScore,profitabilityScore,loyaltySafetyScore,breakEvenScore,riskScore,finalScore,recommendation,beGap:n(be.gap),requiredCommissionPct:n(be.requiredCommissionPct),currentCommissionPct:n(m.commissionPct),pointToCommission};
+  }).sort((a,b)=>a.finalScore-b.finalScore);
+}
+function renderStoreHealth(){
+  const rows=merchantHealthRows();
+  const tableRows=rows.map(r=>{
+    const badge=r.finalScore>=70?'good':(r.finalScore>=45?'warn':'bad');
+    return [html(r.name),html(r.sector),`<span class="badge ${badge}">${pct(r.finalScore,1)}</span>`,pct(r.attractionScore,1),pct(r.profitabilityScore,1),pct(r.loyaltySafetyScore,1),pct(r.breakEvenScore,1),money(r.beGap),pct(r.currentCommissionPct,1),pct(r.requiredCommissionPct,1),html(r.recommendation)];
+  });
+  table('storeHealthTable',[t('name'),t('sector'),'Final score','Attraction','Profitability','Loyalty safety','Break-even','BE gap','Current comm.','Required comm.','Recommendation'],tableRows);
+  const cards=document.getElementById('storeHealthCards');
+  if(cards){
+    cards.innerHTML=rows.slice(0,6).map(r=>{
+      const badge=r.finalScore>=70?'good':(r.finalScore>=45?'warn':'bad');
+      return `<div class="mobile-health-card"><div><strong>${html(r.name)}</strong><small>${html(r.sector)}</small></div><span class="badge ${badge}">${pct(r.finalScore,0)}</span><p>${html(r.recommendation)}</p><div class="mini-bars"><span style="--w:${clamp(r.attractionScore)}%">A</span><span style="--w:${clamp(r.profitabilityScore)}%">P</span><span style="--w:${clamp(r.loyaltySafetyScore)}%">L</span></div></div>`;
+    }).join('');
+  }
+}
+function renderExecutiveCockpit(c=calcScenario()){
+  const el=document.getElementById('mobileCockpit'); if(!el) return;
+  const health=merchantHealthRows();
+  const best=health.slice().sort((a,b)=>b.finalScore-a.finalScore)[0];
+  const worst=health[0];
+  const gap=Number.isFinite(c.breakEvenGMV)?c.gmv-c.breakEvenGMV:0;
+  el.innerHTML=`
+    <div class="cockpit-head"><div><span>${state.lang==='ar'?'موبايل كوكبت':'Mobile cockpit'}</span><h3>${state.lang==='ar'?'أهم القرارات اليوم':'Today’s key decisions'}</h3></div><button class="secondary-btn" data-go-page="scenarios">${state.lang==='ar'?'جرّب What-if':'Run What-if'}</button></div>
+    <div class="cockpit-grid">
+      <div class="cockpit-card ${c.netProfit>=0?'good':'bad'}"><small>${state.lang==='ar'?'صافي الربح':'Net profit'}</small><strong>${money(c.netProfit)}</strong><em>${c.netProfit>=0?(state.lang==='ar'?'فوق الصفر':'positive'):(state.lang==='ar'?'يحتاج تحسين':'needs action')}</em></div>
+      <div class="cockpit-card ${gap>=0?'good':'warn'}"><small>${state.lang==='ar'?'فجوة التعادل':'Break-even gap'}</small><strong>${money(gap)}</strong><em>${gap>=0?(state.lang==='ar'?'فوق التعادل':'above BE'):(state.lang==='ar'?'تحت التعادل':'below BE')}</em></div>
+      <div class="cockpit-card warn"><small>${state.lang==='ar'?'التزام النقاط':'Point liability'}</small><strong>${money(c.pointLiability)}</strong><em>${pct(c.commissionRevenue?c.pointLiability/c.commissionRevenue*100:0,0)} ${state.lang==='ar'?'من العمولة':'of commission'}</em></div>
+      <div class="cockpit-card"><small>${state.lang==='ar'?'أقوى متجر':'Best store'}</small><strong>${best?html(best.name):'N/A'}</strong><em>${best?pct(best.finalScore,0):''}</em></div>
+      <div class="cockpit-card ${worst&&worst.finalScore<45?'bad':'warn'}"><small>${state.lang==='ar'?'أضعف متجر':'Weakest store'}</small><strong>${worst?html(worst.name):'N/A'}</strong><em>${worst?html(worst.recommendation):''}</em></div>
+    </div>`;
+  el.querySelectorAll('[data-go-page]').forEach(btn=>btn.onclick=()=>{state.currentPage=btn.dataset.goPage; render();});
+}
+function renderDecisionAlertsPanel(c=calcScenario()){
+  const title=document.getElementById('decisionAlertsTitle'); if(title) title.textContent=state.lang==='ar'?'تنبيهات القرار':'Decision alerts';
+  const sub=document.getElementById('decisionAlertsSub'); if(sub) sub.textContent=state.lang==='ar'?'أولويات عملية مبنية على الأرقام الحالية.':'Practical priorities based on current numbers.';
+  const el=document.getElementById('decisionAlerts'); if(!el) return;
+  el.innerHTML=buildDecisionAlerts(c).map(a=>`<div class="alert-card ${a.level}"><span>${a.level==='bad'?'!':a.level==='warn'?'⚠':'✓'}</span><div><strong>${html(a.title)}</strong><p>${a.body}</p><small>${html(a.action)}</small></div></div>`).join('');
+}
+function cloneState(){ return JSON.parse(JSON.stringify(state)); }
+function calcWithTemporaryState(nextState){ const old=state; state=nextState; const result=calcScenario(old.activeScenario); state=old; return result; }
+function whatIfOptions(){
+  return [
+    {id:'commissionUp', label:state.lang==='ar'?'ارفع كل العمولات +1%':'Increase all commissions +1%', apply:s=>s.merchants.forEach(m=>m.commissionPct=n(m.commissionPct)+1)},
+    {id:'rewardDown', label:state.lang==='ar'?'خفّض كل النقاط -1%':'Reduce all rewards -1%', apply:s=>s.merchants.forEach(m=>m.rewardPct=Math.max(0,n(m.rewardPct)-1))},
+    {id:'capDown', label:state.lang==='ar'?'خفّض حد الصرف -10%':'Reduce redemption cap -10%', apply:s=>s.merchants.forEach(m=>m.redemptionCapPct=Math.max(0,n(m.redemptionCapPct)-10))},
+    {id:'redemptionHigh', label:state.lang==='ar'?'استخدام النقاط 90%':'Point redemption 90%', apply:s=>s.scenarios[s.activeScenario].redemptionRate=90},
+    {id:'merchantSubUp', label:state.lang==='ar'?'ارفع اشتراك المتاجر +25 JOD':'Merchant subscription +25 JOD', apply:s=>s.merchants.forEach(m=>m.subscription=n(m.subscription)+25)},
+    {id:'growthUp', label:state.lang==='ar'?'ارفع النمو الشهري +3%':'Monthly growth +3%', apply:s=>s.scenarios[s.activeScenario].monthlyGrowthPct=n(s.scenarios[s.activeScenario].monthlyGrowthPct)+3}
+  ];
+}
+function applyWhatIf(id){
+  const opt=whatIfOptions().find(o=>o.id===id); if(!opt) return;
+  mutate(`Apply what-if ${id}`,()=>opt.apply(state));
+}
+function renderWhatIf(){
+  const grid=document.getElementById('whatIfGrid'); if(!grid) return;
+  const title=document.getElementById('whatIfTitle'); if(title) title.textContent=state.lang==='ar'?'محاكي What-if للموبايل':'Mobile What-if simulator';
+  const sub=document.getElementById('whatIfSub'); if(sub) sub.textContent=state.lang==='ar'?'اختبر أثر القرار فورًا على الربح، النقاط، ونقطة التعادل.':'Instantly test impact on profit, point liability and break-even.';
+  const base=calcScenario();
+  grid.innerHTML=whatIfOptions().map(opt=>{
+    const temp=cloneState(); opt.apply(temp); const c=calcWithTemporaryState(temp);
+    const profitDelta=c.netProfit-base.netProfit; const liabilityDelta=c.pointLiability-base.pointLiability; const beDelta=c.breakEvenGMV-base.breakEvenGMV;
+    return `<div class="whatif-card"><strong>${html(opt.label)}</strong><div class="whatif-metrics"><span class="${profitDelta>=0?'positive':'negative'}">Profit ${money(profitDelta)}</span><span class="${liabilityDelta<=0?'positive':'negative'}">Liability ${money(liabilityDelta)}</span><span class="${beDelta<=0?'positive':'negative'}">BE ${money(beDelta)}</span></div><button class="secondary-btn edit-only" data-apply-whatif="${opt.id}">${state.lang==='ar'?'تطبيق':'Apply'}</button></div>`;
+  }).join('');
+  grid.querySelectorAll('[data-apply-whatif]').forEach(btn=>btn.onclick=()=>applyWhatIf(btn.dataset.applyWhatif));
+}
+function mobileMatrixEditor(matrix,destinations){
+  return `<div class="mobile-matrix-editor"><h3>${state.lang==='ar'?'محرر المصفوفة للموبايل':'Mobile matrix editor'}</h3>${matrix.map(row=>`<div class="mobile-matrix-card"><div class="mobile-matrix-source"><strong>${html(row.source)}</strong><small>${html(row.sector)} · ${money(row.issued,1)}</small><span class="badge ${Math.abs(row.rowTotalPct-100)<=.2?'good':'warn'}">${pct(row.rowTotalPct,1)}</span></div>${row.cells.map(c=>`<label><span>${html(c.destination)}</span><input class="cell-input matrix-pct-input" data-matrix-source="${html(row.sourceId)}" data-matrix-dest="${html(c.destinationId)}" type="number" min="0" max="100" step="0.01" value="${html(Number(c.distributionPct).toFixed(2))}"><em>${money(c.amount,1)}</em></label>`).join('')}</div>`).join('')}</div>`;
+}
+
 function render(){
-  document.documentElement.lang=state.lang; document.documentElement.dir=state.lang==='ar'?'rtl':'ltr'; document.body.classList.toggle('en',state.lang==='en');
+  document.documentElement.lang=state.lang; document.documentElement.dir=state.lang==='ar'?'rtl':'ltr'; document.body.classList.toggle('en',state.lang==='en'); document.body.classList.toggle('investor-mode',isInvestorMode());
   document.querySelectorAll('[data-i18n]').forEach(el=>{el.textContent=t(el.dataset.i18n)});
   document.getElementById('langBtn').textContent=state.lang==='ar'?'English':'العربية';
+  const visible=visibleNavItems(); if(!visible.find(n=>n[0]===state.currentPage)) state.currentPage='dashboard';
   document.getElementById('pageTitle').textContent=t(NAV.find(n=>n[0]===state.currentPage)?.[1]||'Dashboard');
   document.getElementById('userRolePill').textContent=`${currentUser?.email || ''} • ${currentRole}`;
+  const vm=document.getElementById('viewModeSelect'); if(vm){ vm.value=isInvestorMode()?'investor':'founder'; vm.disabled=currentRole==='investor'; }
   renderNav(); renderHero(); renderPage(); applyPermissions();
 }
 function renderNav(){
-  document.getElementById('nav').innerHTML=NAV.map(([key,label,icon])=>`<button class="${state.currentPage===key?'active':''}" data-page="${key}"><span>${t(label)}</span><span class="nav-icon">${icon}</span></button>`).join('');
-  document.querySelectorAll('#nav button').forEach(btn=>btn.onclick=()=>{state.currentPage=btn.dataset.page; render();});
+  document.getElementById('nav').innerHTML=visibleNavItems().map(([key,label,icon])=>`<button class="${state.currentPage===key?'active':''}" data-page="${key}"><span>${t(label)}</span><span class="nav-icon">${icon}</span></button>`).join('');
+  document.querySelectorAll('#nav button').forEach(btn=>btn.onclick=()=>{state.currentPage=btn.dataset.page; render(); window.scrollTo({top:0,behavior:'smooth'});});
 }
 function applyPermissions(){
   document.querySelectorAll('.edit-only').forEach(el=>{el.disabled=!canEdit();});
@@ -574,22 +693,21 @@ function renderPage(){
 }
 function renderDashboard(){
   const c=calcScenario();
+  renderExecutiveCockpit(c); renderDecisionAlertsPanel(c);
   table('pulseTable',[t('metric'),t('value'),state.lang==='ar'?'ملاحظة':'Note'],[
     ['GMV',money(c.gmv),'Cash paid only'], ['Orders',fmt(c.orders),'Delivered orders basis'], ['Weighted commission',pct(c.weightedCommission),'GMV weighted'], ['Weighted reward',pct(c.weightedReward),'Base points only'], ['Campaign points',money(c.campaignPoints),'Dealit funded share'], ['Contribution margin',pct(c.contributionMarginRatio*100),'After variable costs'], ['Break-even GMV',money(c.breakEvenGMV),'Current scenario'], ['Profit / loss',money(c.netProfit),c.netProfit>=0?'Healthy':'Needs action']
   ]);
-  renderDecisionRadar(c); renderScenarioChart(); renderBridgeChart();
+  renderDecisionRadar(c); renderStoreHealth(); renderScenarioChart(); renderBridgeChart();
+  document.getElementById('goStoreAttractionBtn')?.addEventListener('click',()=>{state.currentPage='storeAttraction'; render();});
 }
+
 function renderDecisionRadar(c){
-  const messages=[];
-  if(c.weightedCommission < c.weightedReward + n(scenario().paymentFeePct)) messages.push(['bad','عمولة خطرة','متوسط العمولة أقل من النقاط + رسوم الدفع. ارفع العمولة أو خفّض النقاط.']);
-  if(c.netProfit<0) messages.push(['warn','قبل نقطة التعادل',`الفجوة الشهرية الحالية ${money(Math.abs(c.netProfit))}.`]); else messages.push(['good','مربح مبدئيًا',`الهامش الصافي الحالي ${pct(c.totalRevenue?c.netProfit/c.totalRevenue*100:0)}.`]);
-  if(c.pointLiability > c.commissionRevenue*0.6) messages.push(['warn','التزام النقاط مرتفع','راقب redemption cap وbreakage لأن الالتزام كبير مقارنة بإيراد العمولة.']);
-  if(!messages.length) messages.push(['good','النموذج متوازن','الأرقام الحالية مقبولة كنقطة بداية.']);
-  document.getElementById('decisionRadar').innerHTML=messages.map(m=>`<div class="insight-card"><span class="badge ${m[0]}">${m[1]}</span><p>${m[2]}</p></div>`).join('');
+  const alerts=buildDecisionAlerts(c).slice(0,4);
+  document.getElementById('decisionRadar').innerHTML=alerts.map(a=>`<div class="insight-card"><span class="badge ${a.level}">${html(a.title)}</span><p>${a.body}</p><small>${html(a.action)}</small></div>`).join('');
 }
 function table(id, headers, rows){
   const el=document.getElementById(id); if(!el) return;
-  el.innerHTML=`<thead><tr>${headers.map(h=>`<th>${html(h)}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map(c=>`<td>${c??''}</td>`).join('')}</tr>`).join('')}</tbody>`;
+  el.innerHTML=`<thead><tr>${headers.map(h=>`<th>${html(h)}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map((c,i)=>`<td data-label="${html(headers[i]||'')}">${c??''}</td>`).join('')}</tr>`).join('')}</tbody>`;
 }
 function input(value,path,type='number',cls=''){ return `<input class="cell-input ${cls}" data-path="${path}" type="${type}" value="${html(value)}">`; }
 function select(value,path,options){ return `<select class="cell-select" data-path="${path}">${options.map(o=>`<option value="${html(o)}" ${String(o)===String(value)?'selected':''}>${html(o)}</option>`).join('')}</select>`; }
@@ -660,6 +778,7 @@ function renderPoints(){
 }
 function field(label,control){return `<div class="field"><label>${html(label)}</label>${control}</div>`}
 function renderScenarios(){
+  renderWhatIf();
   const rows=SCENARIO_KEYS.map(k=>{const s=state.scenarios[k]; const calc=calcScenario(k); return [k,input(s.name,`scenarios.${k}.name`,'text'),input(s.redemptionRate,`scenarios.${k}.redemptionRate`),input(s.breakageRate,`scenarios.${k}.breakageRate`),input(s.monthlyGrowthPct,`scenarios.${k}.monthlyGrowthPct`),input(s.churnPct,`scenarios.${k}.churnPct`),input(s.bonusPointsPct,`scenarios.${k}.bonusPointsPct`),input(s.paymentFeePct,`scenarios.${k}.paymentFeePct`),input(s.deliverySubsidyPerOrder,`scenarios.${k}.deliverySubsidyPerOrder`),money(calc.netProfit),money(calc.breakEvenGMV),`<button class="secondary-btn" data-scenario="${k}">${state.activeScenario===k?'✓ ':''}${state.lang==='ar'?'تفعيل':'Activate'}</button>`]});
   table('scenariosTable',['Key',t('name'),'Redemption %','Breakage %','Growth %','Churn %','Bonus %','Payment %','Delivery subsidy','Profit','BE GMV',t('action')],rows); bindCells(); document.querySelectorAll('[data-scenario]').forEach(b=>b.onclick=()=>{state.activeScenario=b.dataset.scenario; render(); scheduleSave('Active scenario')});
 }
@@ -727,6 +846,7 @@ function renderStoreAttraction(){
   ].join('');
   renderAttractionChart(rows);
 }
+
 function matrixCellInput(sourceId,destinationId,value,amount){
   return `<div class="matrix-cell editable-matrix"><label><input class="cell-input matrix-pct-input" data-matrix-source="${html(sourceId)}" data-matrix-dest="${html(destinationId)}" type="number" min="0" max="100" step="0.01" value="${html(Number(value).toFixed(2))}"><span>%</span></label><small>${money(amount,1)}</small></div>`;
 }
@@ -771,7 +891,8 @@ function renderPointMatrix(){
       [state.lang==='ar'?'إجمالي الصرف المتوقع':'Expected redeemed', money(totalRedeemed,1)],
       [state.lang==='ar'?'متجر الصرف الأقوى':'Strongest redemption destination', destinations[topIdx]?html(destinations[topIdx].name):'N/A'],
       [state.lang==='ar'?'صفوف تحتاج تعديل':'Rows needing normalization', fmt(badRows)]
-    ])
+    ]),
+    mobileMatrixEditor(matrix,destinations)
   ].join('');
   bindMatrixCells();
 }
@@ -1101,6 +1222,16 @@ function wire(){
   document.getElementById('undoBtn').onclick=()=>{ if(!undoStack.length){return;} const prev=JSON.parse(undoStack.pop()).data; state=prev; toast(t('undoDone')); render(); scheduleSave('Undo') };
   document.getElementById('saveNowBtn').onclick=()=>saveCloud('Manual save');
   document.getElementById('logoutBtn').onclick=()=>signOut(auth);
+  const viewModeSelect=document.getElementById('viewModeSelect');
+  if(viewModeSelect) viewModeSelect.onchange=()=>{ state.viewMode=viewModeSelect.value; render(); };
+  const mobileFab=document.getElementById('mobileFab'); const mobileQuickSheet=document.getElementById('mobileQuickSheet');
+  if(mobileFab) mobileFab.onclick=()=>{ mobileQuickSheet.hidden=false; };
+  document.getElementById('closeQuickSheet')?.addEventListener('click',()=>{ mobileQuickSheet.hidden=true; });
+  document.querySelectorAll('[data-mobile-add]').forEach(btn=>btn.onclick=()=>{ mobileQuickSheet.hidden=true; const action=btn.dataset.mobileAdd; if(!canEdit()){toast(t('editBlocked'));return;} if(action==='merchant'){state.currentPage='merchants'; mutate('Quick add merchant',()=>state.merchants.push({id:uid('m'),name:'New merchant',sector:sectorOptions()[0]||'Food & Beverage',subSector:subSectorOptions(sectorOptions()[0])[0]||'',monthlyOrders:0,aov:0,commissionPct:0,rewardPct:0,redemptionCapPct:n(state.settings.generalRedemptionCapPct),subscription:0,subscriptionCycle:'monthly',merchantMarginPct:0,contractStart:'',contractEnd:'',settlementCycle:'monthly',visibilityScore:50,offerStrengthScore:50,brandPullScore:50,repeatPurchaseScore:50,attractionOverridePct:0,active:true}));}
+    if(action==='revenue'){state.currentPage='items'; mutate('Quick add revenue',()=>state.revenues.push({id:uid('r'),name:'New revenue',type:'fixed_monthly',amount:0,active:true}));}
+    if(action==='expense'){state.currentPage='items'; mutate('Quick add expense',()=>state.expenses.push({id:uid('e'),name:'New expense',type:'fixed_monthly',amount:0,active:true}));}
+    if(action==='campaign'){state.currentPage='points'; mutate('Quick add campaign',()=>state.campaigns.push({id:uid('c'),name:'New campaign',sector:'',bonusPointsPct:0,funding:'dealit',dealitSharePct:100,monthlyBudget:0,active:true}));}
+  });
 
   const emailInput=document.getElementById('emailInput');
   const passwordInput=document.getElementById('passwordInput');
@@ -1144,7 +1275,7 @@ onAuthStateChanged(auth, async user=>{
     const profile=await getUserProfile(user);
     if(!profile){ document.getElementById('authStatus').textContent=t('noAccess'); await signOut(auth); return; }
     currentProfile=profile;
-    currentRole=profile.role||'partner'; authLayer.style.display='none'; appShell.hidden=false; await loadWorkspace(); await loadRemoteAudit(); render(); toast(t('loaded'));
+    currentRole=profile.role||'partner'; if(currentRole==='investor') state.viewMode='investor'; authLayer.style.display='none'; appShell.hidden=false; await loadWorkspace(); await loadRemoteAudit(); render(); toast(t('loaded'));
     const loggedWithDefaultPassword = lastLoginPassword === DEFAULT_FIRST_LOGIN_PASSWORD;
     const needsForcedChange = (profile.mustChangePassword || profile.defaultPasswordActive) && loggedWithDefaultPassword;
     if(needsForcedChange){

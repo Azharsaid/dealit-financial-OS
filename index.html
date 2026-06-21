@@ -2,8 +2,9 @@
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Dealit Financial OS v2.7</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#07111f" />
+  <title>Dealit Financial OS v3 Mobile First</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Noto+Kufi+Arabic:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -77,6 +78,7 @@
         </div>
         <div class="top-actions">
           <span class="role-pill" id="userRolePill">Guest</span>
+          <select class="view-mode-select" id="viewModeSelect" title="View mode"><option value="founder">Founder mode</option><option value="investor">Investor mode</option></select>
           <button class="secondary-btn" id="undoBtn" data-i18n="undo">Undo</button>
           <button class="secondary-btn" id="saveNowBtn" data-i18n="saveNow">Save now</button>
           <button class="ghost-btn" id="logoutBtn" data-i18n="logout">Logout</button>
@@ -86,6 +88,11 @@
       <section class="hero-grid" id="heroGrid"></section>
 
       <section class="page active" id="dashboardPage">
+        <div class="mobile-cockpit" id="mobileCockpit"></div>
+        <div class="panel decision-alerts-panel">
+          <div class="panel-head"><div><h3 id="decisionAlertsTitle">Decision alerts</h3><p id="decisionAlertsSub">Priority actions generated from current economics.</p></div></div>
+          <div id="decisionAlerts" class="alerts-grid"></div>
+        </div>
         <div class="grid two">
           <div class="panel chart-panel">
             <div class="panel-head"><div><h3 data-i18n="scenarioComparison">Scenario comparison</h3><p data-i18n="scenarioComparisonSub">Worst, acceptable and best case based on redemption behavior.</p></div></div>
@@ -99,6 +106,11 @@
         <div class="grid two">
           <div class="panel"><div class="panel-head"><div><h3 data-i18n="financialPulse">Financial pulse</h3><p data-i18n="financialPulseSub">Weighted commission is calculated by GMV, not by simple average.</p></div></div><div class="table-wrap"><table id="pulseTable"></table></div></div>
           <div class="panel"><div class="panel-head"><div><h3 data-i18n="decisionRadar">Decision radar</h3><p data-i18n="decisionRadarSub">Automatic findings from the current model.</p></div></div><div id="decisionRadar" class="insight-panel"></div></div>
+        </div>
+        <div class="panel store-health-panel">
+          <div class="panel-head split"><div><h3 id="storeHealthTitle">Store Health Score</h3><p id="storeHealthSub">Attraction, profitability, loyalty cost and break-even status in one decision table.</p></div><button class="secondary-btn" id="goStoreAttractionBtn" type="button">Open attraction page</button></div>
+          <div class="mobile-card-list" id="storeHealthCards"></div>
+          <div class="table-wrap wide"><table id="storeHealthTable"></table></div>
         </div>
       </section>
 
@@ -139,6 +151,10 @@
       </section>
 
       <section class="page" id="scenariosPage">
+        <div class="panel whatif-panel">
+          <div class="panel-head"><div><h3 id="whatIfTitle">What-if mobile simulator</h3><p id="whatIfSub">Tap a scenario to see the impact on profit, liability and break-even. Admin/accountant can apply the change.</p></div></div>
+          <div id="whatIfGrid" class="whatif-grid"></div>
+        </div>
         <div class="panel"><div class="panel-head"><div><h3 data-i18n="scenarioLab">Scenario lab</h3><p data-i18n="scenarioLabSub">Redemption, growth, churn, bonus points, payment fees and delivery subsidy.</p></div></div><div class="table-wrap"><table id="scenariosTable"></table></div></div>
       </section>
 
@@ -220,6 +236,19 @@
     </main>
   </div>
 
+
+  <button id="mobileFab" class="mobile-fab" type="button" aria-label="Quick add">＋</button>
+  <div id="mobileQuickSheet" class="mobile-quick-sheet" hidden>
+    <div class="mobile-quick-card">
+      <div class="sheet-handle"></div>
+      <h3 id="quickAddTitle">Quick add</h3>
+      <button data-mobile-add="merchant" class="primary-btn">Add merchant</button>
+      <button data-mobile-add="revenue" class="secondary-btn">Add revenue</button>
+      <button data-mobile-add="expense" class="secondary-btn">Add expense</button>
+      <button data-mobile-add="campaign" class="secondary-btn">Add campaign</button>
+      <button id="closeQuickSheet" class="ghost-btn">Close</button>
+    </div>
+  </div>
 
   <div id="forcePasswordModal" class="password-modal" hidden>
     <div class="password-modal-card">

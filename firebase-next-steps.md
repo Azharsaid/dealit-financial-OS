@@ -1,11 +1,10 @@
-# Firebase Next Steps
+# Firebase Notes
 
-1. Authentication > Sign-in method > Email/Password: Enabled.
-2. Firestore Database > Rules: paste `firestore.rules` from this package and Publish.
-3. Upload files to GitHub.
-4. Hard refresh: Ctrl + Shift + R.
+No new Firebase product is required for v3.0.
 
-New user flow:
-- Admin creates user.
-- First password: 123456.
-- User logs in, changes password, and enters the system.
+Required:
+1. Firebase Authentication → Email/Password enabled.
+2. Firestore Standard edition.
+3. Publish `firestore.rules` from this folder.
+
+This version keeps Firebase Auth + Firestore autosave and roles from v2.9.
