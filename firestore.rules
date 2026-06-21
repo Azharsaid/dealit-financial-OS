@@ -1,0 +1,93 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null && request.auth.token.email != null;
+    }
+
+    // Bootstrap Admin emails are already set for Azhar.mohd.said@gmail.com.
+    function bootstrapAdmin() {
+      return signedIn()
+        && request.auth.token.email in ["azhar.mohd.said@gmail.com", "Azhar.mohd.said@gmail.com"];
+    }
+
+    function userDoc(uid) {
+      return /databases/$(database)/documents/users/$(uid);
+    }
+
+    function hasUserDoc() {
+      return signedIn() && exists(userDoc(request.auth.uid));
+    }
+
+    function userRole() {
+      return hasUserDoc() ? get(userDoc(request.auth.uid)).data.role : "";
+    }
+
+    function hasRole(roles) {
+      return bootstrapAdmin() || (hasUserDoc() && userRole() in roles);
+    }
+
+    function isAdmin() {
+      return hasRole(["admin"]);
+    }
+
+    function canReadFinancial() {
+      return hasRole(["admin", "accountant", "partner", "investor"]);
+    }
+
+    function canWriteFinancial() {
+      return hasRole(["admin", "accountant"]);
+    }
+
+    function isSelf(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function invitationForEmail() {
+      return /databases/$(database)/documents/invitations/$(request.auth.token.email);
+    }
+
+    match /users/{uid} {
+      allow read: if isAdmin() || isSelf(uid);
+
+      // A user can create their own profile only if the Admin invited that email.
+      // The role in the created profile must match the invitation role.
+      allow create: if bootstrapAdmin()
+        || isAdmin()
+        || (
+          isSelf(uid)
+          && exists(invitationForEmail())
+          && request.resource.data.email == request.auth.token.email
+          && request.resource.data.role == get(invitationForEmail()).data.role
+          && request.resource.data.role in ["admin", "accountant", "partner", "investor"]
+        );
+
+      allow update, delete: if isAdmin();
+    }
+
+    match /invitations/{email} {
+      allow read: if isAdmin() || (signedIn() && request.auth.token.email == email);
+      allow create, update, delete: if isAdmin() || bootstrapAdmin();
+    }
+
+    match /workspaces/{workspaceId} {
+      allow read: if canReadFinancial();
+      allow create: if isAdmin() || bootstrapAdmin();
+      allow update: if canWriteFinancial();
+      allow delete: if isAdmin();
+    }
+
+    match /auditLogs/{logId} {
+      allow read: if hasRole(["admin", "accountant"]);
+      allow create: if canReadFinancial()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.workspaceId is string
+        && request.resource.data.action is string;
+      allow update, delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

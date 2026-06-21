@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dealit Financial OS v2.7</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Noto+Kufi+Arabic:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="authLayer" class="auth-layer">
+    <div class="auth-card simple-auth-card">
+      <div class="simple-auth-logo">
+        <div class="logo-orb">D</div>
+        <div>
+          <h1>Dealit</h1>
+          <p data-i18n="brandSubtitle">Financial Operating System</p>
+        </div>
+      </div>
+      <div class="form-grid one simple-login-form">
+        <div class="field">
+          <label data-i18n="username">Username</label>
+          <input id="emailInput" class="input" type="email" autocomplete="username" placeholder="email@dealit.com">
+        </div>
+        <div class="field">
+          <label data-i18n="password">Password</label>
+          <input id="passwordInput" class="input" type="password" autocomplete="current-password" placeholder="••••••••">
+        </div>
+      </div>
+      <div class="login-options">
+        <label class="check-row"><input type="checkbox" id="showPasswordInput"><span data-i18n="showPassword">Show my password</span></label>
+        <label class="check-row"><input type="checkbox" id="rememberMeInput" checked><span data-i18n="rememberMe">Remember me</span></label>
+      </div>
+      <button class="primary-btn login-wide" id="loginBtn" data-i18n="login">Login</button>
+      <button class="ghost-link" id="resetPassBtn" type="button" data-i18n="resetPassword">Reset password</button>
+      <div class="auth-status slim-status" id="authStatus">Firebase Cloud mode</div>
+      <button class="hidden" id="signupBtn" type="button" aria-hidden="true" tabindex="-1">Sign up</button>
+    </div>
+  </div>
+
+  <div class="app-shell" id="appShell" hidden>
+    <aside class="sidebar">
+      <div class="brand-block">
+        <div class="logo-orb">D</div>
+        <div>
+          <h1>Dealit</h1>
+          <p data-i18n="brandSubtitle">Financial Operating System</p>
+        </div>
+      </div>
+
+      <div class="mode-card" id="cloudCard">
+        <span class="pulse-dot"></span>
+        <div>
+          <strong id="cloudMode" data-i18n="cloudMode">Firebase cloud autosave</strong>
+          <small id="cloudStatus" data-i18n="cloudWaiting">Waiting for cloud status</small>
+        </div>
+      </div>
+
+      <nav class="nav" id="nav"></nav>
+
+      <div class="sidebar-footer">
+        <button class="ghost-btn" id="langBtn">English</button>
+        <button class="ghost-btn" id="themeBtn" data-i18n="theme">Theme</button>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow" data-i18n="eyebrow">Dealit feasibility, accounting & break-even cockpit</p>
+          <h2 id="pageTitle">Dashboard</h2>
+        </div>
+        <div class="top-actions">
+          <span class="role-pill" id="userRolePill">Guest</span>
+          <button class="secondary-btn" id="undoBtn" data-i18n="undo">Undo</button>
+          <button class="secondary-btn" id="saveNowBtn" data-i18n="saveNow">Save now</button>
+          <button class="ghost-btn" id="logoutBtn" data-i18n="logout">Logout</button>
+        </div>
+      </header>
+
+      <section class="hero-grid" id="heroGrid"></section>
+
+      <section class="page active" id="dashboardPage">
+        <div class="grid two">
+          <div class="panel chart-panel">
+            <div class="panel-head"><div><h3 data-i18n="scenarioComparison">Scenario comparison</h3><p data-i18n="scenarioComparisonSub">Worst, acceptable and best case based on redemption behavior.</p></div></div>
+            <canvas id="scenarioChart" height="150"></canvas>
+          </div>
+          <div class="panel chart-panel">
+            <div class="panel-head"><div><h3 data-i18n="profitBridge">Profit bridge</h3><p data-i18n="profitBridgeSub">How GMV becomes Dealit profit after points, fees and expenses.</p></div></div>
+            <canvas id="bridgeChart" height="150"></canvas>
+          </div>
+        </div>
+        <div class="grid two">
+          <div class="panel"><div class="panel-head"><div><h3 data-i18n="financialPulse">Financial pulse</h3><p data-i18n="financialPulseSub">Weighted commission is calculated by GMV, not by simple average.</p></div></div><div class="table-wrap"><table id="pulseTable"></table></div></div>
+          <div class="panel"><div class="panel-head"><div><h3 data-i18n="decisionRadar">Decision radar</h3><p data-i18n="decisionRadarSub">Automatic findings from the current model.</p></div></div><div id="decisionRadar" class="insight-panel"></div></div>
+        </div>
+      </section>
+
+      <section class="page" id="merchantsPage">
+        <div class="panel">
+          <div class="panel-head split"><div><h3 data-i18n="merchants">Merchants & contracts</h3><p data-i18n="merchantsSub">Commission, reward, redemption cap, contract dates and expected volume.</p></div><button class="primary-btn edit-only" id="addMerchantBtn" data-i18n="addMerchant">Add merchant</button></div>
+          <div class="table-wrap wide"><table id="merchantsTable"></table></div>
+        </div>
+      </section>
+
+      <section class="page" id="sectorsPage">
+        <div class="panel">
+          <div class="panel-head split"><div><h3 data-i18n="sectorDefaults">Sector tree & default assumptions</h3><p data-i18n="sectorDefaultsSub">Large sectors with sub-sectors. Defaults are editable and used when adding new merchants.</p></div><div class="button-row"><button class="primary-btn edit-only" id="addSectorBtn" data-i18n="addSector">Add sector</button><button class="secondary-btn edit-only" id="resetSectorsBtn" data-i18n="resetDefaults">Reset defaults</button></div></div>
+          <div class="table-wrap wide"><table id="sectorsTable"></table></div>
+        </div>
+      </section>
+
+      <section class="page" id="subscriptionsPage">
+        <div class="grid two">
+          <div class="panel"><div class="panel-head split"><div><h3 data-i18n="merchantPlans">Merchant plans</h3><p data-i18n="merchantPlansSub">Monthly/annual fees and marketing reserve share.</p></div><button class="primary-btn edit-only" id="addMerchantPlanBtn" data-i18n="addPlan">Add plan</button></div><div class="table-wrap"><table id="merchantPlansTable"></table></div></div>
+          <div class="panel"><div class="panel-head split"><div><h3 data-i18n="userPlans">User plans</h3><p data-i18n="userPlansSub">Plans can increase redemption cap or reduce delivery fees later.</p></div><button class="primary-btn edit-only" id="addUserPlanBtn" data-i18n="addPlan">Add plan</button></div><div class="table-wrap"><table id="userPlansTable"></table></div></div>
+        </div>
+      </section>
+
+      <section class="page" id="itemsPage">
+        <div class="grid two">
+          <div class="panel"><div class="panel-head split"><div><h3 data-i18n="revenueItems">Revenue items</h3><p data-i18n="revenueItemsSub">Ads, setup fees, sponsored offers, reports and any extra stream.</p></div><button class="primary-btn edit-only" id="addRevenueBtn" data-i18n="addRevenue">Add revenue</button></div><div class="table-wrap"><table id="revenueTable"></table></div></div>
+          <div class="panel"><div class="panel-head split"><div><h3 data-i18n="expenseItems">Expense items</h3><p data-i18n="expenseItemsSub">Fixed, variable, percent of GMV, percent of commission or one-time.</p></div><button class="primary-btn edit-only" id="addExpenseBtn" data-i18n="addExpense">Add expense</button></div><div class="table-wrap"><table id="expenseTable"></table></div></div>
+        </div>
+      </section>
+
+      <section class="page" id="pointsPage">
+        <div class="grid two">
+          <div class="panel"><div class="panel-head"><div><h3 data-i18n="pointsEngine">Points engine</h3><p data-i18n="pointsEngineSub">Point liability, expiry, breakage, base/bonus/campaign points.</p></div></div><div class="form-grid" id="pointsSettings"></div></div>
+          <div class="panel insight-panel" id="pointsInsight"></div>
+        </div>
+        <div class="panel"><div class="panel-head split"><div><h3 data-i18n="campaigns">Campaigns</h3><p data-i18n="campaignsSub">Model bonus points funded by Dealit, merchants or shared.</p></div><button class="primary-btn edit-only" id="addCampaignBtn" data-i18n="addCampaign">Add campaign</button></div><div class="table-wrap"><table id="campaignsTable"></table></div></div>
+      </section>
+
+      <section class="page" id="scenariosPage">
+        <div class="panel"><div class="panel-head"><div><h3 data-i18n="scenarioLab">Scenario lab</h3><p data-i18n="scenarioLabSub">Redemption, growth, churn, bonus points, payment fees and delivery subsidy.</p></div></div><div class="table-wrap"><table id="scenariosTable"></table></div></div>
+      </section>
+
+      <section class="page" id="breakevenPage">
+        <div class="grid two">
+          <div class="panel"><div class="panel-head"><div><h3 data-i18n="breakEvenLab">Break-even lab</h3><p data-i18n="breakEvenLabSub">Break-even by total app, sector and merchant.</p></div></div><div class="table-wrap"><table id="breakevenTable"></table></div></div>
+          <div class="panel chart-panel"><div class="panel-head"><div><h3 data-i18n="sectorBreakEven">Sector contribution</h3><p data-i18n="sectorBreakEvenSub">Which sectors carry the economics.</p></div></div><canvas id="sectorChart" height="170"></canvas></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><div><h3>Sector break-even</h3><p>Allocated fixed costs by GMV share, then break-even by sector contribution margin.</p></div></div>
+          <div class="table-wrap wide"><table id="sectorBreakEvenTable"></table></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><div><h3>Merchant break-even</h3><p>Store-level break-even based on each merchant's GMV, commission, points, subscriptions and allocated fixed costs.</p></div></div>
+          <div class="table-wrap wide"><table id="merchantBreakEvenTable"></table></div>
+        </div>
+      </section>
+
+
+      <section class="page" id="storeAttractionPage">
+        <div class="panel">
+          <div class="panel-head split">
+            <div>
+              <h3 data-i18n="storeAttractionTitle">Store attraction power</h3>
+              <p data-i18n="storeAttractionSub">Score each merchant’s pull power for redemption probability and partner negotiations.</p>
+            </div>
+          </div>
+          <div class="table-wrap wide"><table id="storeAttractionTable"></table></div>
+        </div>
+        <div class="grid two">
+          <div class="panel chart-panel">
+            <div class="panel-head"><div><h3 data-i18n="storeAttractionChart">Attraction share</h3><p data-i18n="storeAttractionChartSub">Expected share of where users will prefer to spend points.</p></div></div>
+            <canvas id="attractionChart" height="180"></canvas>
+          </div>
+          <div class="panel insight-panel" id="storeAttractionInsight"></div>
+        </div>
+      </section>
+
+      <section class="page" id="pointMatrixPage">
+        <div class="panel">
+          <div class="panel-head split">
+            <div>
+              <h3 data-i18n="pointMatrixTitle">Point redemption probability matrix</h3>
+              <p data-i18n="pointMatrixSub">Each row shows where points earned from one merchant are likely to be redeemed, based on destination store attraction.</p>
+            </div>
+          </div>
+          <div id="pointMatrixInsight" class="insight-panel"></div>
+          <div class="table-wrap wide matrix-wrap"><table id="pointMatrixTable"></table></div>
+        </div>
+      </section>
+
+      <section class="page" id="accountingPage">
+        <div class="grid two">
+          <div class="panel"><div class="panel-head"><div><h3 data-i18n="plStatement">Profit & Loss</h3><p data-i18n="plSub">Management P&L based on delivered orders.</p></div></div><div class="table-wrap"><table id="plTable"></table></div></div>
+          <div class="panel"><div class="panel-head"><div><h3 data-i18n="balanceView">Balance-style view</h3><p data-i18n="balanceSub">Point liability, marketing reserve and merchant receivables.</p></div></div><div class="table-wrap"><table id="balanceTable"></table></div></div>
+        </div>
+        <div class="grid two">
+          <div class="panel"><div class="panel-head"><div><h3 data-i18n="journalEntries">Automatic journal entries</h3><p data-i18n="journalSub">Illustrative entries generated from the current scenario.</p></div></div><div class="table-wrap wide"><table id="journalTable"></table></div></div>
+          <div class="panel"><div class="panel-head"><div><h3 data-i18n="chartAccounts">Chart of accounts</h3><p data-i18n="chartAccountsSub">Editable account map for future accounting integration.</p></div></div><div class="table-wrap wide"><table id="accountsTable"></table></div></div>
+        </div>
+      </section>
+
+      <section class="page" id="reportsPage">
+        <div class="panel"><div class="panel-head"><div><h3 data-i18n="reports">Reports & exports</h3><p data-i18n="reportsSub">Export management summary, Excel, CSV, JSON, printable PDF or PowerPoint.</p></div></div><div class="button-grid"><button class="primary-btn" id="excelBtn" data-i18n="exportExcel">Export Excel</button><button class="secondary-btn" id="csvBtn" data-i18n="exportCsv">Export CSV</button><button class="secondary-btn" id="exportJsonBtn" data-i18n="exportJson">Export JSON</button><button class="secondary-btn" id="printBtn" data-i18n="printPdf">Print / PDF</button><button class="primary-btn" id="pptBtn" data-i18n="exportPpt">Export PowerPoint</button></div></div>
+        <div class="panel" id="reportSummary"></div>
+      </section>
+
+      <section class="page" id="adminPage">
+        <div class="grid two">
+          <div class="panel"><div class="panel-head split"><div><h3 data-i18n="usersRoles">Users & roles</h3><p data-i18n="usersRolesSub">Add invited emails and roles. Auth account is created when the user signs up.</p></div><button class="primary-btn admin-only" id="addUserBtn" data-i18n="addUser">Add user</button></div><div class="table-wrap"><table id="usersTable"></table></div></div>
+          <div class="panel"><div class="panel-head"><div><h3 data-i18n="auditLog">Audit log</h3><p data-i18n="auditLogSub">Every meaningful change is ready for Firestore audit collection.</p></div></div><div class="table-wrap"><table id="auditTable"></table></div></div>
+        </div>
+        <div class="panel"><div class="panel-head"><div><h3 data-i18n="firebaseOps">Firebase operations</h3><p data-i18n="firebaseOpsSub">Cloud save, real-time sync and setup checks.</p></div></div><div id="firebaseOps" class="insight-panel"></div></div>
+      </section>
+
+      <section class="page" id="settingsPage">
+        <div class="panel"><div class="panel-head"><div><h3 data-i18n="settings">General settings</h3><p data-i18n="settingsSub">JOD, payment fees, forecast months, fiscal date and system behavior.</p></div></div><div class="form-grid" id="settingsForm"></div></div>
+      </section>
+    </main>
+  </div>
+
+
+  <div id="forcePasswordModal" class="password-modal" hidden>
+    <div class="password-modal-card">
+      <div class="simple-auth-logo compact-logo">
+        <div class="logo-orb">D</div>
+        <div>
+          <h2 id="forcePasswordTitle">Change password</h2>
+          <p id="forcePasswordText">For security, create your own password before continuing.</p>
+        </div>
+      </div>
+      <div class="form-grid one simple-login-form">
+        <div class="field">
+          <label id="newPasswordLabel">New password</label>
+          <input id="newPasswordInput" class="input" type="password" autocomplete="new-password" placeholder="Minimum 6 characters">
+        </div>
+        <div class="field">
+          <label id="confirmPasswordLabel">Confirm password</label>
+          <input id="confirmPasswordInput" class="input" type="password" autocomplete="new-password" placeholder="Repeat password">
+        </div>
+      </div>
+      <label class="check-row modal-check"><input type="checkbox" id="showNewPasswordInput"><span id="showNewPasswordText">Show my password</span></label>
+      <button class="primary-btn login-wide" id="changePasswordBtn">Update password</button>
+      <p class="modal-note" id="forcePasswordNote">You will use this password for future logins.</p>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
