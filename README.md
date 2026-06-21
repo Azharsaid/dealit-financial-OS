@@ -1,3 +1,3 @@
-# Dealit Financial OS v3.2
+# Dealit Financial OS v3.3 — Login Function Fix
 
-Hard auth-gate mobile login fix. Upload index.html, styles.css, app.js, and keep your current Firestore rules.
+Fixes mobile hard auth gate and restores login click/Enter behavior.

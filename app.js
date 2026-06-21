@@ -1268,6 +1268,27 @@ async function login(signup=false){
   }
   catch(e){toast(`${signup?t('signUpError'):t('signInError')}: ${e.message}`)}
 }
+
+function setAuthGate(isAuthenticated){
+  const authLayer = document.getElementById('authLayer');
+  const appShell = document.getElementById('appShell');
+  document.body.classList.toggle('auth-lock', !isAuthenticated);
+  document.body.classList.toggle('authenticated', !!isAuthenticated);
+  if(authLayer){
+    authLayer.hidden = !!isAuthenticated;
+    authLayer.style.display = isAuthenticated ? 'none' : 'grid';
+    authLayer.style.visibility = isAuthenticated ? 'hidden' : 'visible';
+    authLayer.style.pointerEvents = isAuthenticated ? 'none' : 'auto';
+  }
+  if(appShell){
+    appShell.hidden = !isAuthenticated;
+    appShell.style.display = isAuthenticated ? '' : 'none';
+    appShell.style.visibility = isAuthenticated ? 'visible' : 'hidden';
+    appShell.style.pointerEvents = isAuthenticated ? 'auto' : 'none';
+  }
+}
+
+
 onAuthStateChanged(auth, async user=>{
   currentUser=user; const authLayer=document.getElementById('authLayer'), appShell=document.getElementById('appShell');
   if(!user){ currentRole='guest'; currentProfile=null; setAuthGate(false); closeForcePasswordModal(); setCloudStatus('cloudOffline'); return; }
