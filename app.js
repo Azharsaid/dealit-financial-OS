@@ -1,4 +1,4 @@
-/* Dealit Financial OS v2.7
+/* Dealit Financial OS v2.8
    Firebase Cloud + Accounting + Feasibility + Break-even + Loyalty Engine
    Static GitHub Pages compatible. Login supports Enter key, Remember me, default first password, forced password change and Admin reset links.
 */
@@ -1010,7 +1010,7 @@ function exportExcel(){
     return out;
   });
   XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(matrixRows),'Point Matrix');
-  XLSX.writeFile(wb,'dealit-financial-os-v2-7.xlsx');
+  XLSX.writeFile(wb,'dealit-financial-os-v2-8.xlsx');
 }
 function exportPpt(){
   if(!window.pptxgen){toast(t('pptMissing'));return;} const pptx=new pptxgen(); pptx.layout='LAYOUT_WIDE'; pptx.author='Dealit Financial OS';
@@ -1021,7 +1021,7 @@ function exportPpt(){
   addSlide('Top sectors',sectorStats().slice(0,7).map(r=>`${r.sector}: GMV ${money(r.gmv)} | Profit ${money(r.profit)}`));
   addSlide('Store attraction',merchantAttractionRows().slice(0,7).map(r=>`${r.name}: Suggested ${pct(r.suggested)} | Final ${pct(r.score)} | Share ${pct(r.share)}`));
   addSlide('Point matrix summary',pointRedemptionMatrix().slice(0,7).map(r=>`${r.source}: issued ${money(r.issued)} | expected redeemed ${money(r.expectedRedeemed)} | row total ${pct(r.rowTotalPct)} | breakage ${money(r.breakage)}`));
-  pptx.writeFile({fileName:'dealit-financial-os-v2-7.pptx'});
+  pptx.writeFile({fileName:'dealit-financial-os-v2-8.pptx'});
 }
 
 
@@ -1050,30 +1050,49 @@ function closeForcePasswordModal(){
 async function completeForcedPasswordChange(){
   const p1=document.getElementById('newPasswordInput')?.value || '';
   const p2=document.getElementById('confirmPasswordInput')?.value || '';
+  const btn=document.getElementById('changePasswordBtn');
   if(p1.length < 6){ toast(state.lang==='ar'?'كلمة المرور يجب أن تكون 6 خانات على الأقل':'Password must be at least 6 characters'); return; }
   if(p1 !== p2){ toast(state.lang==='ar'?'كلمتا المرور غير متطابقتين':'Passwords do not match'); return; }
   if(p1 === DEFAULT_FIRST_LOGIN_PASSWORD){ toast(state.lang==='ar'?'اختار كلمة مرور مختلفة عن 123456':'Choose a password different from 123456'); return; }
   try{
+    if(btn){ btn.disabled=true; btn.textContent=state.lang==='ar'?'جاري التحديث...':'Updating...'; }
+
+    // 1) Change the password in Firebase Authentication for the currently signed-in user.
     await updatePassword(auth.currentUser, p1);
+
+    // 2) Mark the forced-change flag as completed in the user's own Firestore profile.
+    // Firestore rules v2.8 allow the signed-in user to update only these password-status fields.
     await setDoc(doc(db,'users',auth.currentUser.uid),{
       email:emailKey(auth.currentUser.email),
       mustChangePassword:false,
       defaultPasswordActive:false,
       passwordChangedAt:serverTimestamp()
     },{merge:true});
+
+    // 3) Best effort only: keep the invitation row clean too. If rules/data block it, do not trap the user.
     await setDoc(doc(db,'invitations',emailKey(auth.currentUser.email)),{
       email:emailKey(auth.currentUser.email),
       mustChangePassword:false,
       defaultPasswordActive:false,
       passwordChangedAt:serverTimestamp()
-    },{merge:true});
+    },{merge:true}).catch(err=>console.warn('Invitation password flag was not updated:', err.message));
+
     await writeAudit('Forced password changed');
     currentProfile={...(currentProfile||{}),mustChangePassword:false,defaultPasswordActive:false};
     closeForcePasswordModal();
-    toast(state.lang==='ar'?'تم تحديث كلمة المرور':'Password updated');
+    render();
+    toast(state.lang==='ar'?'تم تحديث كلمة المرور، يمكنك الآن استخدام النظام':'Password updated. You can now use the system.');
   }catch(e){
     console.error(e);
-    toast(e.message || (state.lang==='ar'?'تعذر تحديث كلمة المرور':'Could not update password'));
+    if(e.code === 'auth/requires-recent-login'){
+      toast(state.lang==='ar'?'انتهت جلسة الأمان. سجّل الخروج وادخل مرة أخرى ثم غيّر كلمة المرور.':'Security session expired. Log in again, then change the password.');
+    }else if(String(e.message||'').toLowerCase().includes('permission')){
+      toast(state.lang==='ar'?'يجب تحديث Firestore Rules إلى نسخة v2.8 ثم إعادة المحاولة.':'Update Firestore Rules to v2.8, then try again.');
+    }else{
+      toast(e.message || (state.lang==='ar'?'تعذر تحديث كلمة المرور':'Could not update password'));
+    }
+  }finally{
+    if(btn){ btn.disabled=false; btn.textContent=state.lang==='ar'?'تحديث كلمة المرور':'Update password'; }
   }
 }
 function wire(){

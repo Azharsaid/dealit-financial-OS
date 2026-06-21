@@ -47,6 +47,32 @@ service cloud.firestore {
       return /databases/$(database)/documents/invitations/$(request.auth.token.email);
     }
 
+    // Allows a new user to finish the forced password-change popup without giving them
+    // permission to change their role, email, or any financial data.
+    function selfPasswordStatusUpdate(uid) {
+      return isSelf(uid)
+        && resource.data.email == request.auth.token.email
+        && request.resource.data.email == resource.data.email
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "mustChangePassword",
+          "defaultPasswordActive",
+          "passwordChangedAt"
+        ]);
+    }
+
+    function selfInvitationPasswordStatusUpdate(email) {
+      return signedIn()
+        && request.auth.token.email == email
+        && request.resource.data.email == resource.data.email
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "mustChangePassword",
+          "defaultPasswordActive",
+          "passwordChangedAt"
+        ]);
+    }
+
     match /users/{uid} {
       allow read: if isAdmin() || isSelf(uid);
 
@@ -62,12 +88,15 @@ service cloud.firestore {
           && request.resource.data.role in ["admin", "accountant", "partner", "investor"]
         );
 
-      allow update, delete: if isAdmin();
+      allow update: if isAdmin() || selfPasswordStatusUpdate(uid);
+      allow delete: if isAdmin();
     }
 
     match /invitations/{email} {
       allow read: if isAdmin() || (signedIn() && request.auth.token.email == email);
-      allow create, update, delete: if isAdmin() || bootstrapAdmin();
+      allow create: if isAdmin() || bootstrapAdmin();
+      allow update: if isAdmin() || bootstrapAdmin() || selfInvitationPasswordStatusUpdate(email);
+      allow delete: if isAdmin() || bootstrapAdmin();
     }
 
     match /workspaces/{workspaceId} {

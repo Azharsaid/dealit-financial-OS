@@ -1,8 +1,8 @@
-# Dealit Financial OS v2.7
+# Dealit Financial OS v2.8
 
 GitHub Pages-ready financial operating system for Dealit with Firebase Cloud autosave.
 
-## v2.7 updates
+## v2.8 updates
 
 - Simple login remains: username + password, Enter = login, show password, remember me.
 - Admin can create users directly in Firebase Authentication with first login password `123456`.
