@@ -108,3 +108,25 @@ body.auth-lock #authLayer{
 body.authenticated #authLayer{display:none!important;}
 body.authenticated #appShell{display:flex;}
 @media(max-width:860px){body.authenticated #appShell{display:block;} body.auth-lock .auth-card{max-height:calc(100dvh - 32px);overflow:auto;}}
+
+
+/* v3.4 auth hardening */
+body.auth-lock #appShell,
+body.auth-lock .mobile-bottom-nav,
+body.auth-lock #mobileFab,
+body:not(.authenticated) #appShell,
+body:not(.authenticated) .mobile-bottom-nav,
+body:not(.authenticated) #mobileFab {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+body.auth-lock #authLayer,
+body:not(.authenticated) #authLayer {
+  display: grid !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
+  z-index: 999999 !important;
+}
+#emailInput, #passwordInput { direction: ltr; unicode-bidi: plaintext; text-align: left; }
+html[dir="rtl"] #emailInput, html[dir="rtl"] #passwordInput { text-align: left; }

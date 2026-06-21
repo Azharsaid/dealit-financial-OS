@@ -1,3 +1,4 @@
+const APP_VERSION = 'v3.4-login-cache-setauth-fix';
 /* Dealit Financial OS v3.0
    Mobile-first UX + Executive cockpit + Decision alerts + Store health + Mobile matrix + What-if simulator.
    Firebase Cloud + Accounting + Feasibility + Break-even + Loyalty Engine.
@@ -1269,24 +1270,39 @@ async function login(signup=false){
   catch(e){toast(`${signup?t('signUpError'):t('signInError')}: ${e.message}`)}
 }
 
-function setAuthGate(isAuthenticated){
+
+const setAuthGate = (isAuthenticated) => {
   const authLayer = document.getElementById('authLayer');
   const appShell = document.getElementById('appShell');
+  const mobileFab = document.getElementById('mobileFab');
+  const mobileBottomNav = document.querySelector('.mobile-bottom-nav');
+
   document.body.classList.toggle('auth-lock', !isAuthenticated);
   document.body.classList.toggle('authenticated', !!isAuthenticated);
-  if(authLayer){
+
+  if (authLayer) {
     authLayer.hidden = !!isAuthenticated;
     authLayer.style.display = isAuthenticated ? 'none' : 'grid';
     authLayer.style.visibility = isAuthenticated ? 'hidden' : 'visible';
     authLayer.style.pointerEvents = isAuthenticated ? 'none' : 'auto';
+    authLayer.setAttribute('aria-hidden', isAuthenticated ? 'true' : 'false');
   }
-  if(appShell){
+
+  if (appShell) {
     appShell.hidden = !isAuthenticated;
     appShell.style.display = isAuthenticated ? '' : 'none';
     appShell.style.visibility = isAuthenticated ? 'visible' : 'hidden';
     appShell.style.pointerEvents = isAuthenticated ? 'auto' : 'none';
+    appShell.setAttribute('aria-hidden', isAuthenticated ? 'false' : 'true');
   }
-}
+
+  // Extra mobile safety: never show app navigation before auth is confirmed.
+  [mobileFab, mobileBottomNav].filter(Boolean).forEach(el => {
+    el.style.display = isAuthenticated ? '' : 'none';
+    el.style.pointerEvents = isAuthenticated ? 'auto' : 'none';
+  });
+};
+window.__dealitSetAuthGate = setAuthGate;
 
 
 onAuthStateChanged(auth, async user=>{
