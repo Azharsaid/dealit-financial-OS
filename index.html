@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#07111f" />
-  <title>Dealit Financial OS v3 Mobile First</title>
+  <title>Dealit Financial OS v3.2 Auth Gate Hard Fix</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Noto+Kufi+Arabic:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -13,7 +13,7 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <link rel="stylesheet" href="styles.css" />
 </head>
-<body>
+<body class="auth-lock">
   <div id="authLayer" class="auth-layer">
     <div class="auth-card simple-auth-card">
       <div class="simple-auth-logo">
@@ -44,7 +44,7 @@
     </div>
   </div>
 
-  <div class="app-shell" id="appShell" hidden>
+  <div class="app-shell" id="appShell" hidden style="display:none!important;">
     <aside class="sidebar">
       <div class="brand-block">
         <div class="logo-orb">D</div>

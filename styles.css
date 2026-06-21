@@ -74,3 +74,37 @@ body.light{--bg:#f5f7fb;--panel:#ffffff;--panel-2:#f0f4fb;--text:#102033;--muted
   body{background:#07111f;padding-bottom:calc(78px + env(safe-area-inset-bottom))}.app-shell{display:block}.main{padding:14px 14px 24px}.sidebar{position:fixed;left:0;right:0;bottom:0;top:auto;width:100%;height:auto;padding:8px 10px calc(8px + env(safe-area-inset-bottom));z-index:55;border-inline-end:0;border-top:1px solid var(--line);background:rgba(5,10,19,.88);backdrop-filter:blur(22px)}.brand-block,.mode-card,.sidebar-footer{display:none}.nav{display:flex;flex-direction:row;gap:6px;overflow-x:auto;padding:0;scrollbar-width:none}.nav::-webkit-scrollbar{display:none}.nav button{flex:0 0 auto;min-width:76px;display:flex;flex-direction:column-reverse;gap:4px;align-items:center;justify-content:center;text-align:center;padding:8px 10px;border-radius:18px;font-size:10px}.nav .nav-icon{font-size:17px}.topbar{position:sticky;top:0;z-index:40;margin:-14px -14px 14px;padding:14px;background:linear-gradient(180deg,rgba(7,17,31,.96),rgba(7,17,31,.78));backdrop-filter:blur(18px);border-bottom:1px solid var(--line)}.topbar h2{font-size:25px}.eyebrow{display:none}.top-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;width:100%}.top-actions .role-pill{grid-column:1/-1;text-align:center;justify-content:center;white-space:normal;line-height:1.4}.view-mode-select{width:100%;min-width:0}.hero-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.kpi-card{padding:14px;border-radius:20px}.kpi-value{font-size:20px}.kpi-note{font-size:10px}.grid.two{grid-template-columns:1fr}.panel{padding:14px;margin-bottom:14px;border-radius:22px}.panel-head{flex-direction:column;align-items:flex-start}.panel-head.split{align-items:stretch}.button-row,.top-actions{flex-wrap:nowrap}.alerts-grid,.cockpit-grid,.whatif-grid{grid-template-columns:1fr}.mobile-cockpit{display:block}.cockpit-head{align-items:flex-start}.cockpit-head button{padding:9px 11px}.cockpit-grid{gap:10px}.cockpit-card{min-height:100px}.store-health-panel .table-wrap{display:none}.mobile-card-list{display:grid;gap:10px}.table-wrap:not(.matrix-wrap){border:0;overflow:visible}.table-wrap:not(.matrix-wrap) table{min-width:0;width:100%;display:block}.table-wrap:not(.matrix-wrap) thead{display:none}.table-wrap:not(.matrix-wrap) tbody{display:grid;gap:10px}.table-wrap:not(.matrix-wrap) tr{display:block;border:1px solid var(--line);border-radius:18px;background:rgba(255,255,255,.045);padding:8px}.table-wrap:not(.matrix-wrap) td{display:flex;align-items:center;justify-content:space-between;gap:14px;border:0;padding:8px;white-space:normal;text-align:end}.table-wrap:not(.matrix-wrap) td:before{content:attr(data-label);color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.04em;font-weight:900;text-align:start;max-width:48%}.table-wrap:not(.matrix-wrap) td>*{max-width:54%}.cell-input,.cell-select,.input{min-height:44px;border-radius:14px}.primary-btn,.secondary-btn,.ghost-btn,.danger-btn,.success-btn{min-height:44px;border-radius:14px}.button-grid{grid-template-columns:1fr}.report-tabs{overflow-x:auto;flex-wrap:nowrap;padding-bottom:4px}.report-tabs button{flex:0 0 auto}.matrix-wrap{display:none}.mobile-matrix-editor{display:block}.mobile-fab{display:grid;place-items:center}.auth-layer{padding:16px}.simple-auth-card{border-radius:26px}.password-modal-card{border-radius:24px;padding:22px}.chart-panel canvas{max-height:260px}.mobile-quick-card .primary-btn,.mobile-quick-card .secondary-btn,.mobile-quick-card .ghost-btn{width:100%}
 }
 @media(max-width:520px){.main{padding:12px 12px 20px}.hero-grid{grid-template-columns:1fr 1fr}.kpi-label{font-size:10px}.kpi-value{font-size:18px}.panel{padding:12px}.topbar h2{font-size:22px}.top-actions{grid-template-columns:1fr}.mobile-matrix-card label{grid-template-columns:1fr;align-items:stretch}.mobile-matrix-card label em{text-align:start}.cockpit-head{display:grid}.cockpit-head button{width:100%}.alerts-grid{gap:10px}.alert-card{padding:12px}.form-grid{grid-template-columns:1fr}.simple-auth-logo{margin-bottom:18px}.simple-auth-logo .logo-orb{width:48px;height:48px}.simple-auth-logo h1{font-size:23px}}
+
+/* v3.1 FIX: keep the app fully hidden before authentication and put login above mobile UI */
+[hidden], #appShell[hidden], .app-shell[hidden], .mobile-quick-sheet[hidden], .password-modal[hidden] { display: none !important; }
+#authLayer.auth-layer { z-index: 9999 !important; }
+#authLayer .auth-card { max-height: calc(100dvh - 32px); overflow: auto; }
+@media(max-width:720px){
+  #authLayer.auth-layer{padding:16px;align-items:center;justify-items:center;}
+  #authLayer .simple-auth-card{width:min(100%,430px);margin:auto;}
+  body:has(#authLayer[style*="grid"]) .mobile-fab{display:none!important;}
+}
+
+
+/* v3.2 HARD AUTH GATE: nothing from the app can appear before a valid login */
+body.auth-lock{padding-bottom:0!important;overflow:hidden!important;}
+body.auth-lock #appShell,
+body.auth-lock .app-shell,
+body.auth-lock .sidebar,
+body.auth-lock .topbar,
+body.auth-lock .mobile-fab,
+body.auth-lock #mobileFab,
+body.auth-lock #mobileQuickSheet{
+  display:none!important;
+  visibility:hidden!important;
+  pointer-events:none!important;
+}
+body.auth-lock #authLayer{
+  display:grid!important;
+  visibility:visible!important;
+  pointer-events:auto!important;
+  z-index:2147483000!important;
+}
+body.authenticated #authLayer{display:none!important;}
+body.authenticated #appShell{display:flex;}
+@media(max-width:860px){body.authenticated #appShell{display:block;} body.auth-lock .auth-card{max-height:calc(100dvh - 32px);overflow:auto;}}

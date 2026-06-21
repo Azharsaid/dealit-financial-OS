@@ -1270,12 +1270,12 @@ async function login(signup=false){
 }
 onAuthStateChanged(auth, async user=>{
   currentUser=user; const authLayer=document.getElementById('authLayer'), appShell=document.getElementById('appShell');
-  if(!user){ currentRole='guest'; currentProfile=null; appShell.hidden=true; authLayer.style.display='grid'; closeForcePasswordModal(); setCloudStatus('cloudOffline'); return; }
+  if(!user){ currentRole='guest'; currentProfile=null; setAuthGate(false); closeForcePasswordModal(); setCloudStatus('cloudOffline'); return; }
   try{
     const profile=await getUserProfile(user);
     if(!profile){ document.getElementById('authStatus').textContent=t('noAccess'); await signOut(auth); return; }
     currentProfile=profile;
-    currentRole=profile.role||'partner'; if(currentRole==='investor') state.viewMode='investor'; authLayer.style.display='none'; appShell.hidden=false; await loadWorkspace(); await loadRemoteAudit(); render(); toast(t('loaded'));
+    currentRole=profile.role||'partner'; if(currentRole==='investor') state.viewMode='investor'; setAuthGate(true); await loadWorkspace(); await loadRemoteAudit(); render(); toast(t('loaded'));
     const loggedWithDefaultPassword = lastLoginPassword === DEFAULT_FIRST_LOGIN_PASSWORD;
     const needsForcedChange = (profile.mustChangePassword || profile.defaultPasswordActive) && loggedWithDefaultPassword;
     if(needsForcedChange){
@@ -1290,4 +1290,6 @@ onAuthStateChanged(auth, async user=>{
   }catch(e){console.error(e); document.getElementById('authStatus').textContent=e.message; toast(e.message);}
 });
 
-wire(); render();
+setAuthGate(false);
+wire();
+// Do not render the app before authentication; this prevents mobile UI from appearing behind login.
